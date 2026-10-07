@@ -23,11 +23,14 @@ namespace Rasa.Auth
     using Structures.Auth;
     using Threading;
     using Timer;
+    using Web;
 
     public class Server : ILoopable, IRasaServer
     {
         private readonly IHostApplicationLifetime _hostApplicationLifetime;
         private readonly IAuthUnitOfWorkFactory _authUnitOfWorkFactory;
+        private readonly WebServer _webServer = new WebServer();
+        private DiscordOAuth _discord;
 
         public string ServerType { get; } = "Authentication";
 
@@ -210,6 +213,8 @@ namespace Rasa.Auth
 
             // TODO: Set up timed events (query stuff, internal communication, etc...)
 
+            SetupWebServer();
+
             return true;
         }
 
@@ -313,6 +318,85 @@ namespace Rasa.Auth
             System.Threading.Interlocked.Exchange(ref _acceptRefusalsSinceLog, 0);
 
             Logger.WriteLog(LogType.Security, $"Refused an auth connection from {address}: {MaxConnectionsPerAddress} already open from it ({refused} refused since the last of these).");
+        }
+        #endregion
+
+        #region Web
+        private void SetupWebServer()
+        {
+            if (Config.WebConfig?.Enabled != true)
+            {
+                Logger.WriteLog(LogType.Initialize, "Web server is off (WebConfig.Enabled).");
+                return;
+            }
+
+            var discord = new DiscordOAuth(Config.DiscordConfig);
+
+            if (!discord.IsConfigured())
+            {
+                Logger.WriteLog(LogType.Error, "DiscordConfig needs ClientId, ClientSecret and RedirectUri; the web server stays off.");
+                return;
+            }
+
+            _discord = discord;
+
+            _webServer.AddRoute("/oauth/login", HandleOAuthLogin);
+            _webServer.AddRoute("/oauth/callback", HandleOAuthCallback);
+
+            if (!_webServer.Start(Config.WebConfig.Port))
+                _discord = null; // no way for a browser to reach us, so no Discord sign-ins
+        }
+
+        /// <summary>Null when Discord sign-in isn't available: web server off, not configured, or its port wouldn't open.</summary>
+        public DiscordOAuth GetDiscordOAuth()
+        {
+            return _discord;
+        }
+
+        private WebResponse HandleOAuthLogin(WebRequest request)
+        {
+            var nonce = request.GetQueryValue("t");
+            var loginUrl = _discord.CreateLoginUrl(nonce);
+
+            if (loginUrl == null)
+                return WebResponse.Error(400, "This sign-in link is invalid or has already been used. Please click Login with Discord in the game again.");
+
+            return WebResponse.Page(
+                "<h1>Sign in to the game</h1>" +
+                $"<p>Check this code matches the one shown in the game: <b>{DiscordOAuth.GetDisplayCode(nonce)}</b></p>" +
+                "<p>If you didn't just click Login with Discord in the game yourself, close this page.</p>" +
+                $"<p><a href=\"{WebUtility.HtmlEncode(loginUrl)}\">Continue with Discord</a></p>");
+        }
+
+        private WebResponse HandleOAuthCallback(WebRequest request)
+        {
+            // Discord sends "error" instead of "code" when the user clicks Cancel.
+            var error = request.GetQueryValue("error");
+            if (error != null)
+                return WebResponse.Error(400, $"Sign-in was cancelled or refused: {error}");
+
+            // The state is the game client's nonce, passed through Discord unchanged.
+            var nonce = request.GetQueryValue("state");
+
+            if (!_discord.TakePendingSignIn(nonce))
+                return WebResponse.Error(400, "This sign-in link has expired or was already used. Please click Login with Discord in the game again.");
+
+            var code = request.GetQueryValue("code");
+            if (code == null)
+                return WebResponse.Error(400, "No code in the redirect.");
+
+            var accessToken = _discord.ExchangeCodeForToken(code);
+            var user = _discord.GetCurrentUser(accessToken);
+
+            _discord.RecordCompletedSignIn(nonce, user);
+
+            // Only the start of the nonce: until the game client collects it, the whole thing is a secret.
+            Logger.WriteLog(LogType.Network, $"Discord sign-in: {user.UserName} ({user.Id}) from {request.RemoteAddress}");
+
+            return WebResponse.Page(
+                "<h1>Signed in with Discord</h1>" +
+                $"<p>Signed in as {WebUtility.HtmlEncode(user.DisplayName ?? user.UserName)} (code {DiscordOAuth.GetDisplayCode(nonce)}).</p>" +
+                "<p>You can close this window. The game will carry on by itself.</p>");
         }
         #endregion
 
@@ -636,6 +720,8 @@ namespace Rasa.Auth
 
         public void Shutdown()
         {
+            _webServer.Stop();
+
             ListenerSocket?.Close();
             ListenerSocket = null;
 

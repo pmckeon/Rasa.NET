@@ -52,6 +52,34 @@ namespace Rasa.Repositories.Auth.Account
             _dbContext.SaveChanges();
         }
 
+        public AuthAccountEntry FindByDiscordId(string discordId)
+        {
+            if (string.IsNullOrEmpty(discordId))
+                return null;
+
+            return _dbContext.AuthAccountEntries.AsNoTracking().FirstOrDefault(e => e.DiscordId == discordId);
+        }
+
+        public void CreateForDiscord(string email, string userName, string password, string discordId)
+        {
+            if (string.IsNullOrEmpty(discordId))
+                throw new ArgumentNullException(nameof(discordId));
+
+            var salt = CreateSalt();
+
+            var entry = new AuthAccountEntry
+            {
+                Email = email,
+                Username = userName,
+                Password = PasswordHasher.Create(password, salt, _passwordHashSettings),
+                Salt = salt,
+                DiscordId = discordId
+            };
+
+            _dbContext.AuthAccountEntries.Add(entry);
+            _dbContext.SaveChanges();
+        }
+
         public AuthAccountEntry FindByUserNameOrEmail(string userName, string email)
         {
             // lower() on both sides: Sqlite compares with BINARY collation, and "Bob" beside

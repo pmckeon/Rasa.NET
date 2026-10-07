@@ -13,6 +13,7 @@ namespace Rasa.Auth
     using Packets;
     using Packets.Auth.Client;
     using Packets.Auth.Server;
+    using Rasa.Web;
     using Repositories;
     using Repositories.Auth.Account;
     using Repositories.UnitOfWork;
@@ -54,6 +55,11 @@ namespace Rasa.Auth
         /// <summary>How long a new connection has to send its login.</summary>
         private const int LoginTimeoutMs = 30000;
         private const int MaxQueuedPackets = 64;
+        /// <summary>The username the game client sends to ask for a Discord sign-in; its password is the token.</summary>
+        private const string OAuthUserName = "OAUTH";
+
+        /// <summary>The token this connection is waiting for, while State is WaitingForOAuth.</summary>
+        private string _oauthNonce;
 
         public Client(LengthedSocket socket, Server server, IAuthUnitOfWorkFactory authUnitOfWorkFactory)
         {
@@ -126,6 +132,21 @@ namespace Rasa.Auth
 
             if (State == ClientState.Disconnected)
                 return;
+
+            // Waiting for the browser half of a Discord sign-in: see if it has finished.
+            if (State == ClientState.WaitingForOAuth)
+            {
+                try
+                {
+                    CheckOAuthSignIn();
+                }
+                catch (Exception e)
+                {
+                    Logger.WriteLog(LogType.Error, $"Error finishing a Discord sign-in for {Socket.RemoteAddress}, disconnecting client: {e}");
+                    Close();
+                    return;
+                }
+            }
 
             IBasePacket packet;
 
@@ -390,6 +411,12 @@ namespace Rasa.Auth
                 return;
             }
 
+            if (string.Equals(packet.UserName, OAuthUserName, StringComparison.OrdinalIgnoreCase))
+            {
+                BeginOAuthLogin(packet.Password);
+                return;
+            }
+
             using var unitOfWork = _authUnitOfWorkFactory.Create();
 
             try
@@ -434,6 +461,71 @@ namespace Rasa.Auth
             });
 
             Logger.WriteLog(LogType.Network, "*** Client logged in from {0}", Socket.RemoteAddress);
+        }
+
+        private void BeginOAuthLogin(string nonce)
+        {
+            if (Server.GetDiscordOAuth() == null || !DiscordOAuth.IsValidNonce(nonce))
+            {
+                SendPacket(new LoginFailPacket(FailReason.UnexpectedError));
+                Close();
+                Logger.WriteLog(LogType.Security, $"Client {Socket.RemoteAddress} asked for a Discord sign-in, but it is unavailable or the token is malformed.");
+                return;
+            }
+
+            _oauthNonce = nonce;
+            State = ClientState.WaitingForOAuth;
+
+            Logger.WriteLog(LogType.Network, "*** Client {0} is waiting for a Discord sign-in", Socket.RemoteAddress);
+        }
+
+        /// <summary>Main loop, every tick while WaitingForOAuth.</summary>
+        private void CheckOAuthSignIn()
+        {
+            var user = Server.GetDiscordOAuth()?.TakeCompletedSignIn(_oauthNonce);
+            if (user == null)
+                return; // not finished in the browser yet
+
+            _oauthNonce = null;
+
+            FinishOAuthLogin(user);
+        }
+
+        private void FinishOAuthLogin(DiscordUser user)
+        {
+            using var unitOfWork = _authUnitOfWorkFactory.Create();
+
+            var account = DiscordAccounts.FindOrCreate(unitOfWork.AuthAccountRepository, unitOfWork.Complete, user);
+
+            if (account == null)
+            {
+                SendPacket(new LoginFailPacket(FailReason.UnexpectedError));
+                Close();
+                return;
+            }
+
+            if (account.Locked)
+            {
+                SendPacket(new BlockedAccountPacket());
+                Close();
+                Logger.WriteLog(LogType.Security, $"Discord user {user.UserName} ({user.Id}) tried to log in to locked account {account.Username} ({account.Id}).");
+                return;
+            }
+
+            AccountEntry = account;
+
+            unitOfWork.AuthAccountRepository.UpdateLoginData(AccountEntry.Id, Socket.RemoteAddress);
+            unitOfWork.Complete();
+
+            State = ClientState.LoggedIn;
+
+            SendPacket(new LoginOkPacket
+            {
+                SessionId1 = SessionId1,
+                SessionId2 = SessionId2
+            });
+
+            Logger.WriteLog(LogType.Network, $"*** Client logged in from {Socket.RemoteAddress} with Discord as {AccountEntry.Username} ({AccountEntry.Id})");
         }
 
 #pragma warning disable IDE0060 // Remove unused parameter

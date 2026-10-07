@@ -13,5 +13,7 @@ namespace Rasa.Config
         public CommunicatorConfig CommunicatorConfig { get; set; }
         public Logger.LoggerConfig LoggerConfig { get; set; }
         public PasswordHashConfig PasswordHashConfig { get; set; } = new PasswordHashConfig();
+        public WebConfig WebConfig { get; set; } = new WebConfig();
+        public DiscordConfig DiscordConfig { get; set; } = new DiscordConfig();
     }
 }

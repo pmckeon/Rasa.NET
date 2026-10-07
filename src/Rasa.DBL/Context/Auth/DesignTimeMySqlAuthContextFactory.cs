@@ -1,20 +1,41 @@
-﻿using Microsoft.EntityFrameworkCore.Design;
+﻿using System;
 
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using JetBrains.Annotations;
 
 namespace Rasa.Context.Auth
 {
     using Configuration;
+    using Configuration.ConnectionStrings;
+    using Configuration.ContextSetup;
+    using Services.DbContext;
 
     /// <summary>
-    /// Used by EF Core to create and execute migrations.
+    /// Used by EF Core to create and execute migrations. Assumes MySQL 8.4, as the World and Char
+    /// factories do, so creating a migration doesn't need a MySQL server to ask.
     /// </summary>
     [UsedImplicitly]
     public class DesignTimeMySqlAuthContextFactory : DesignTimeContextFactoryBase, IDesignTimeDbContextFactory<MySqlAuthContext>
     {
         public MySqlAuthContext CreateDbContext(string[] args)
         {
-            return CreateDbContext<MySqlAuthContext>(DatabaseProvider.MySql);
+            var configuration = new ConfigurationBuilder()
+                .AddJsonFile("databasesettings.json", false, false)
+                .AddJsonFile("databasesettings.env.json", true, false)
+                .Build();
+            var databases = new DatabaseConfiguration();
+            configuration.GetSection("Databases").Bind(databases);
+            databases.Provider = DatabaseProvider.MySql.ToString();
+
+            return new MySqlAuthContext(
+                Options.Create(databases),
+                new MySqlDbContextConfigurationService(
+                    new MySqlConnectionStringFactory(),
+                    _ => new MySqlServerVersion(new Version(8, 4, 0))),
+                new MySqlDbContextPropertyModifier());
         }
     }
 }

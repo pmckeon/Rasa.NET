@@ -8,6 +8,7 @@
         ServerList = 3,
         Queued = 4,
         Redirecting = 5,
-        Disconnected = 6
+        Disconnected = 6,
+        WaitingForOAuth = 7
     }
 }

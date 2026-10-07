@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Rasa.Context.Auth;
 
+#nullable disable
+
 namespace Rasa.Migrations.SqliteAuth
 {
     [DbContext(typeof(SqliteAuthContext))]
@@ -13,8 +15,7 @@ namespace Rasa.Migrations.SqliteAuth
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder
-                .HasAnnotation("ProductVersion", "5.0.1");
+            modelBuilder.HasAnnotation("ProductVersion", "9.0.20");
 
             modelBuilder.Entity("Rasa.Structures.Auth.AuthAccountEntry", b =>
                 {
@@ -22,6 +23,10 @@ namespace Rasa.Migrations.SqliteAuth
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasColumnName("id");
+
+                    b.Property<string>("DiscordId")
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("discord_id");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -89,6 +94,9 @@ namespace Rasa.Migrations.SqliteAuth
                         .HasColumnName("validation_token");
 
                     b.HasKey("Id");
+
+                    b.HasIndex(new[] { "DiscordId" }, "discord_id_UNIQUE")
+                        .IsUnique();
 
                     b.HasIndex(new[] { "Email" }, "email_UNIQUE")
                         .IsUnique();

@@ -657,6 +657,8 @@ namespace Rasa.Test.Networking
             public void UpdateLoginData(uint id, IPAddress remoteAddress) => throw new NotSupportedException();
             public void UpdateLastServer(uint id, byte lastServerId) => throw new NotSupportedException();
             public AuthAccountEntry SetLocked(string userName, bool locked) => throw new NotSupportedException();
+            public AuthAccountEntry FindByDiscordId(string discordId) => throw new NotSupportedException();
+            public void CreateForDiscord(string email, string userName, string password, string discordId) => throw new NotSupportedException();
         }
     }
 }

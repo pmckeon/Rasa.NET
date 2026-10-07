@@ -31,6 +31,10 @@ namespace Rasa.Migrations.MySqlAuth
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<uint>("Id"));
 
+                    b.Property<string>("DiscordId")
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("discord_id");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("varchar(255)")
@@ -97,6 +101,9 @@ namespace Rasa.Migrations.MySqlAuth
                         .HasColumnName("validation_token");
 
                     b.HasKey("Id");
+
+                    b.HasIndex(new[] { "DiscordId" }, "discord_id_UNIQUE")
+                        .IsUnique();
 
                     b.HasIndex(new[] { "Email" }, "email_UNIQUE")
                         .IsUnique();

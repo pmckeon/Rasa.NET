@@ -35,5 +35,11 @@ namespace Rasa.Repositories.Auth.Account
         /// </summary>
         /// <returns>the updated account, or null when no account has that username</returns>
         AuthAccountEntry SetLocked(string userName, bool locked);
+
+        /// <summary>The account linked to this Discord user ID; null for none.</summary>
+        AuthAccountEntry FindByDiscordId(string discordId);
+
+        /// <summary>Makes an account linked to a Discord user ID.</summary>
+        void CreateForDiscord(string email, string userName, string password, string discordId);
     }
 }

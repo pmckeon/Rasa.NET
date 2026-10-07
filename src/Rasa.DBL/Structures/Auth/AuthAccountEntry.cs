@@ -11,6 +11,7 @@ namespace Rasa.Structures.Auth
     [Table(AuthAccountEntry.TableName)]
     [Index(nameof(AuthAccountEntry.Email), IsUnique = true, Name = "email_UNIQUE")]
     [Index(nameof(AuthAccountEntry.Username), IsUnique = true, Name = "username_UNIQUE")]
+    [Index(nameof(AuthAccountEntry.DiscordId), IsUnique = true, Name = "discord_id_UNIQUE")]
     public class AuthAccountEntry : IHasId
     {
         public const string TableName = "account";
@@ -65,5 +66,9 @@ namespace Rasa.Structures.Auth
 
         [Column("validation_token", TypeName = "varchar(40)")]
         public string ValidationToken { get; set; }
+
+        /// <summary>The Discord user ID this account signs in with; null for a password account.</summary>
+        [Column("discord_id", TypeName = "varchar(20)")]
+        public string DiscordId { get; set; }
     }
 }
