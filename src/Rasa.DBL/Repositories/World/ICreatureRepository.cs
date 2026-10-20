@@ -1,4 +1,4 @@
-﻿using Rasa.Structures.World;
+using Rasa.Structures.World;
 using System.Collections.Generic;
 
 namespace Rasa.Repositories.World
@@ -14,11 +14,18 @@ namespace Rasa.Repositories.World
         /// named is not touched.
         /// </summary>
         void ReplaceClassFlags(IReadOnlyDictionary<uint, IReadOnlyCollection<uint>> flagsByClass) => throw new System.NotSupportedException();
+
+        /// <summary>Atomically replace a creature row and its complete appearance set.</summary>
+        void UpdateCreatureEditor(CreatureEntry creature, IReadOnlyList<CreatureAppearanceEntry> appearance) =>
+            throw new System.NotSupportedException();
         CreatureStatEntry GetCreatureStats(uint creatureId);
         CreatureActionEntry GetCreatureActionById(uint id);
         Dictionary<uint, CreatureActionEntry> GetCreatureActions();
         void CreateOrUpdateAppearance(uint dbId, uint slotId, uint classId, uint hue);
         List<CreatureAppearanceEntry> GetCreatureAppearances(uint creatureId);
+
+        /// <summary>Every row of creature_appearance, in one query (CreatureManager.CreatureInit).</summary>
+        List<CreatureAppearanceEntry> GetAllCreatureAppearances() => new List<CreatureAppearanceEntry>();
         List<VendorItemEntry> GetVendorItems();
         List<VendorEntry> GetVendors();
         List<VendorPriceEntry> GetVendorPrices();
@@ -30,8 +37,15 @@ namespace Rasa.Repositories.World
         /// <summary>The battle cry package each class and creature row has been given (creature_battlecry). One with no row is silent.</summary>
         List<CreatureBattlecryEntry> GetBattlecries() => new List<CreatureBattlecryEntry>();
 
+        /// <summary>The barks each NPC has been given (npc_bark). One with no row never barks.</summary>
+        List<NpcBarkEntry> GetNpcBarks() => new List<NpcBarkEntry>();
+
         /// <summary>Gives a creature row its own battle cry package, or changes the one it has (creature_battlecry, scope creature).</summary>
         void SaveCreatureBattlecry(uint creatureId, uint packageId) => throw new System.NotSupportedException();
+
+        /// <summary>Atomically change/clear a greeting if it still matches the last loaded values.</summary>
+        bool UpdateNpcGreetingEditor(uint creatureId, uint expectedId, bool expectedImportant,
+            uint greetingId, bool important) => throw new System.NotSupportedException();
 
         /// <summary>Gives a creature row a greeting, or changes the one it has.</summary>
         void SaveNpcGreeting(uint creatureId, uint greetingId) => throw new System.NotSupportedException();

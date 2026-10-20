@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -6,6 +6,7 @@ namespace Rasa.Structures.World
 {
     [Table(TableName)]
     [Keyless]
+    [Index(nameof(Id), nameof(SlotId), Name = "creature_appearance_index_creature_slot")]
     public class CreatureAppearanceEntry
     {
         public const string TableName = "creature_appearance";
@@ -24,5 +25,6 @@ namespace Rasa.Structures.World
         [Column("color")]
         [Required]
         public uint Color { get; set; }
+
     }
 }
